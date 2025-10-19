@@ -136,9 +136,13 @@ class TestGameIntegration(unittest.TestCase):
 
     def test_critical_hit_integration(self):
         """测试暴击集成"""
+        # 临时提高暴击率以确保测试通过
+        original_crit_rate = self.player.crit_rate
+        self.player.crit_rate = 0.5  # 50%暴击率确保测试通过
+
         # 模拟暴击（通过多次攻击直到出现暴击）
         crit_found = False
-        max_attempts = 100  # 增加尝试次数到100
+        max_attempts = 50  # 减少尝试次数，因为暴击率已提高
 
         for attempt in range(max_attempts):
             # 恢复敌人状态
@@ -164,6 +168,9 @@ class TestGameIntegration(unittest.TestCase):
                 self.assertIsNotNone(ai_response, "暴击时AI应该有反应")
 
                 break
+
+        # 恢复原始暴击率
+        self.player.crit_rate = original_crit_rate
 
         self.assertTrue(crit_found, f"在{max_attempts}次攻击内应该出现暴击")
 

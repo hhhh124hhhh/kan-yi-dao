@@ -341,12 +341,27 @@ class StrawDummy:
     def _draw_name(self, screen: pygame.Surface) -> None:
         """绘制名字"""
         try:
-            font = pygame.font.Font(None, 16)
+            # 使用中文字体系统渲染敌人名称
+            from .font_manager import get_chinese_text_font
+            from .text_localization import get_localization
+            
+            # 获取本地化系统
+            localization = get_localization()
+            
+            # 使用中文字体渲染敌人名称
+            font = get_chinese_text_font(18)  # 使用18号字体
             text = font.render(self.name, True, (200, 200, 200))
             text_rect = text.get_rect(centerx=self.rect.centerx, top=self.rect.bottom + 5)
             screen.blit(text, text_rect)
-        except:
-            pass  # 如果字体加载失败，跳过名字绘制
+        except Exception as e:
+            # 如果字体加载失败，使用默认字体作为回退
+            try:
+                font = pygame.font.Font(None, 18)
+                text = font.render(self.name, True, (200, 200, 200))
+                text_rect = text.get_rect(centerx=self.rect.centerx, top=self.rect.bottom + 5)
+                screen.blit(text, text_rect)
+            except:
+                pass  # 如果仍然失败，跳过名字绘制
 
     def reset(self) -> None:
         """重置状态"""

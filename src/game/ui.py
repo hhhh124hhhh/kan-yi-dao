@@ -4,6 +4,10 @@ import time
 from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
+# 导入新的字体和文本系统
+from .font_manager import get_chinese_text_font
+from .text_localization import get_localization, TextType
+
 
 @dataclass
 class UIElement:
@@ -22,12 +26,23 @@ class UIManager:
         self.screen_width = screen_width
         self.screen_height = screen_height
 
-        # 字体缓存
+        # 文本本地化系统
+        self.localization = get_localization()
+
+        # 字体缓存 - 使用新的中文字体系统
         self.fonts = {
-            'small': pygame.font.Font(None, 16),
-            'medium': pygame.font.Font(None, 24),
-            'large': pygame.font.Font(None, 32),
-            'huge': pygame.font.Font(None, 48)
+            'small': get_chinese_text_font(16),
+            'medium': get_chinese_text_font(24),
+            'large': get_chinese_text_font(32),
+            'huge': get_chinese_text_font(48)
+        }
+
+        # 字体大小定义（用于动态调整）
+        self.font_sizes = {
+            'small': 16,
+            'medium': 24,
+            'large': 32,
+            'huge': 48
         }
 
         # UI元素位置（按UI.md规范）
@@ -88,16 +103,28 @@ class UIManager:
         pygame.draw.rect(screen, self.colors['border'], self.status_bar_rect, 2)
 
         # 等级信息
-        level_text = self.fonts['medium'].render(f"[等级] Lv.{player.level}", True, self.colors['text'])
+        level_text = self.localization.render_text(
+            f"{self.localization.get_ui_text('level')} Lv.{player.level}",
+            self.font_sizes['medium'],
+            self.colors['text']
+        )
         screen.blit(level_text, (10, 10))
 
         # 攻击力信息
-        power_text = self.fonts['medium'].render(f"[攻击力] {player.attack_power}", True, self.colors['accent'])
-        screen.blit(power_text, (150, 10))
+        attack_power_text = self.localization.render_text(
+            f"{self.localization.get_ui_text('attack_power')} {player.attack_power}",
+            self.font_sizes['medium'],
+            self.colors['accent']
+        )
+        screen.blit(attack_power_text, (150, 10))
 
         # 武器等级
-        weapon_text = self.fonts['medium'].render(f"[武器] Lv.{player.weapon_tier}", True, self.colors['text'])
-        screen.blit(power_text, (300, 10))
+        weapon_text = self.localization.render_text(
+            f"武器 Lv.{player.weapon_tier}",
+            self.font_sizes['medium'],
+            self.colors['text']
+        )
+        screen.blit(weapon_text, (300, 10))
 
         # 经验条
         exp_ratio = player.exp / player.next_exp
@@ -113,11 +140,19 @@ class UIManager:
 
         # 经验百分比
         exp_percent = int(exp_ratio * 100)
-        exp_text = self.fonts['small'].render(f"{exp_percent}%", True, self.colors['text'])
+        exp_text = self.localization.render_text(
+            f"{exp_percent}%",
+            self.font_sizes['small'],
+            self.colors['text']
+        )
         screen.blit(exp_text, (610, 17))
 
         # 金币信息
-        coins_text = self.fonts['medium'].render(f"💰 {player.coins}", True, (255, 215, 0))
+        coins_text = self.localization.render_text(
+            f"💰 {player.coins}",
+            self.font_sizes['medium'],
+            (255, 215, 0)
+        )
         screen.blit(coins_text, (680, 10))
 
     def draw_ai_dialog(self, screen: pygame.Surface, ai_text: str) -> None:
@@ -143,34 +178,42 @@ class UIManager:
         # 绘制文本
         y_offset = 10
         for line in lines:
-            text = self.fonts['medium'].render(f"💬 {line}", True, (200, 255, 200))
+            text = self.localization.render_text(
+                f"💬 {line}",
+                self.font_sizes['medium'],
+                (200, 255, 200)
+            )
             text_rect = text.get_rect(x=dialog_rect.x + 10, y=dialog_rect.y + y_offset)
             screen.blit(text, text_rect)
             y_offset += 25
 
     def _wrap_text(self, text: str, max_width: int) -> list:
-        """文本换行处理"""
-        words = text.split(' ')
+        """文本换行处理（支持中文）"""
+        # 对于中文文本，按字符分割而非按单词分割
         lines = []
-        current_line = []
+        current_line = ""
 
-        for word in words:
-            test_line = ' '.join(current_line + [word])
-            text_surface = self.fonts['medium'].render(test_line, True, (255, 255, 255))
+        for char in text:
+            test_line = current_line + char
+            text_surface = self.localization.render_text(
+                test_line,
+                self.font_sizes['medium'],
+                (255, 255, 255)
+            )
 
             if text_surface.get_width() <= max_width:
-                current_line.append(word)
+                current_line = test_line
             else:
                 if current_line:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
+                    lines.append(current_line)
+                    current_line = char
                 else:
-                    # 单词太长，强制换行
-                    lines.append(word)
-                    current_line = []
+                    # 单个字符太长，强制换行
+                    lines.append(char)
+                    current_line = ""
 
         if current_line:
-            lines.append(' '.join(current_line))
+            lines.append(current_line)
 
         return lines
 
@@ -218,6 +261,35 @@ class UIManager:
         hp_text_rect = hp_text.get_rect(centerx=enemy.rect.centerx, y=bar_y - 15)
         screen.blit(hp_text, hp_text_rect)
 
+        # 绘制敌人名称（使用中文字体系统）
+        self._draw_enemy_name(screen, enemy)
+
+    def _draw_enemy_name(self, screen: pygame.Surface, enemy) -> None:
+        """
+        绘制敌人名称
+
+        Args:
+            screen: 屏幕对象
+            enemy: 敌人对象
+        """
+        try:
+            # 使用中文字体系统渲染敌人名称
+            enemy_name_text = self.localization.render_text(
+                enemy.name,
+                self.font_sizes['small'],
+                self.colors['text']
+            )
+            name_rect = enemy_name_text.get_rect(centerx=enemy.rect.centerx, y=enemy.rect.bottom + 5)
+            screen.blit(enemy_name_text, name_rect)
+        except Exception as e:
+            # 如果中文字体渲染失败，使用默认字体作为回退
+            try:
+                name_text = self.fonts['small'].render(enemy.name, True, self.colors['text'])
+                name_rect = name_text.get_rect(centerx=enemy.rect.centerx, y=enemy.rect.bottom + 5)
+                screen.blit(name_text, name_rect)
+            except:
+                pass  # 如果仍然失败，跳过名字绘制
+
     def draw_combo_counter(self, screen: pygame.Surface, player) -> None:
         """
         绘制连击计数器
@@ -230,15 +302,19 @@ class UIManager:
             return
 
         # 连击文字
-        combo_text = f"x{player.combo}"
-        font = self.fonts['huge'] if player.combo >= 10 else self.fonts['large']
+        combo_text = self.localization.format_combo_text(player.combo)
+        font_size = self.font_sizes['huge'] if player.combo >= 10 else self.font_sizes['large']
 
         # 添加脉冲效果
         scale = 1.0 + 0.1 * math.sin(time.time() * 5)
         if player.combo >= 20:
             scale *= 1.2
 
-        text = font.render(combo_text, True, self.colors['combo_text'])
+        text = self.localization.render_text(
+            combo_text,
+            font_size,
+            self.colors['combo_text']
+        )
 
         if scale != 1.0:
             scaled_size = (int(text.get_width() * scale), int(text.get_height() * scale))
@@ -250,8 +326,13 @@ class UIManager:
 
         # 连击提示
         if player.combo >= 10:
-            tip_text = f"连击x{player.combo}! 伤害+{int((player.combo // 10) * 10)}%"
-            tip_surface = self.fonts['medium'].render(tip_text, True, self.colors['accent'])
+            damage_bonus = int((player.combo // 10) * 10)
+            tip_text = f"{self.localization.format_combo_text(player.combo)}! 伤害+{damage_bonus}%"
+            tip_surface = self.localization.render_text(
+                tip_text,
+                self.font_sizes['medium'],
+                self.colors['accent']
+            )
             tip_rect = tip_surface.get_rect(centerx=screen.get_width() // 2, y=text_rect.bottom + 10)
             screen.blit(tip_surface, tip_rect)
 
@@ -304,15 +385,23 @@ class UIManager:
         pygame.draw.rect(screen, self.colors['border'], stamina_bg_rect, 1)
 
         # 体力文字
-        stamina_text = f"体力: {player.stamina}/{player.max_stamina}"
-        text = self.fonts['small'].render(stamina_text, True, self.colors['text'])
+        stamina_text = f"{self.localization.get_ui_text('stamina')}: {player.stamina}/{player.max_stamina}"
+        text = self.localization.render_text(
+            stamina_text,
+            self.font_sizes['small'],
+            self.colors['text']
+        )
         text_rect = text.get_rect(x=bar_x + bar_width + 10, centery=bar_y + bar_height // 2)
         screen.blit(text, text_rect)
 
         # 体力不足警告
         if stamina_percent < 0.3:
-            warning_text = "体力不足!"
-            warning_surface = self.fonts['medium'].render(warning_text, True, self.colors['danger'])
+            warning_text = self.localization.get_ui_text('stamina_warning')
+            warning_surface = self.localization.render_text(
+                warning_text,
+                self.font_sizes['medium'],
+                self.colors['danger']
+            )
             warning_rect = warning_surface.get_rect(centerx=screen.get_width() // 2, y=bar_y - 30)
             screen.blit(warning_surface, warning_rect)
 
@@ -331,9 +420,12 @@ class UIManager:
         alpha = min(255, player.level_up_timer * 4)
 
         # 升级文字
-        level_text = f"LEVEL UP! Lv.{player.level}"
-        font = self.fonts['huge']
-        text = font.render(level_text, True, (255, 215, 0))
+        level_text = f"{self.localization.get_gameplay_text('level_up')} Lv.{player.level}"
+        text = self.localization.render_text(
+            level_text,
+            self.font_sizes['huge'],
+            (255, 215, 0)
+        )
 
         # 创建透明surface
         text_surface = pygame.Surface(text.get_size(), pygame.SRCALPHA)
@@ -345,8 +437,12 @@ class UIManager:
         screen.blit(text_surface, text_rect)
 
         # 属性提升提示
-        stats_text = f"攻击力+5 体力上限+10 暴击率+2%"
-        stats_surface = self.fonts['medium'].render(stats_text, True, (255, 255, 255))
+        stats_text = "攻击力+5 体力上限+10 暴击率+2%"
+        stats_surface = self.localization.render_text(
+            stats_text,
+            self.font_sizes['medium'],
+            (255, 255, 255)
+        )
         stats_rect = stats_surface.get_rect(centerx=screen.get_width() // 2, y=text_rect.bottom + 20)
         screen.blit(stats_surface, stats_rect)
 
@@ -358,8 +454,12 @@ class UIManager:
             screen: 屏幕对象
             pos: 位置
         """
-        crit_text = "暴击!"
-        text = self.fonts['large'].render(crit_text, True, (255, 50, 50))
+        crit_text = self.localization.get_effect_text('critical_hit')
+        text = self.localization.render_text(
+            crit_text,
+            self.font_sizes['large'],
+            (255, 50, 50)
+        )
         text_rect = text.get_rect(center=pos)
         screen.blit(text, text_rect)
 
@@ -373,7 +473,11 @@ class UIManager:
         """
         y_offset = 50
         for key, value in debug_data.items():
-            text = self.fonts['small'].render(f"{key}: {value}", True, (200, 200, 200))
+            text = self.localization.render_text(
+                f"{key}: {value}",
+                self.font_sizes['small'],
+                (200, 200, 200)
+            )
             screen.blit(text, (10, y_offset))
             y_offset += 20
 

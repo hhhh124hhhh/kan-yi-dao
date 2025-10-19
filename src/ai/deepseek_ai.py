@@ -36,29 +36,7 @@ class DeepSeekAI(AIBehaviorInterface, AILearningInterface, AIPersonalityInterfac
                  rate_limit: int = 60):
         super().__init__()
 
-        # API配置
-        self.api_key = api_key or os.getenv('DEEPSEEK_API_KEY', '')
-        self.model = model
-        self.base_url = base_url
-        self.timeout = timeout
-        self.rate_limit = rate_limit
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-
-        # 降级机制
-        self.fallback_enabled = fallback_enabled
-        self.fallback_ai = RuleBasedAI() if fallback_enabled else None
-
-        # 请求控制
-        self.request_times = []  # 记录请求时间，用于速率限制
-        self.last_request_time = 0
-
-        # DeepSeek特定配置
-        self.system_prompt = self._build_game_optimized_prompt()
-        self.conversation_history = []
-        self.max_history_length = 8
-
-        # 游戏专属角色设定
+        # 游戏专属角色设定（需要在使用前定义）
         self.game_personas = {
             'veteran_swordsman': {
                 'name': '剑术导师',
@@ -86,6 +64,28 @@ class DeepSeekAI(AIBehaviorInterface, AILearningInterface, AIPersonalityInterfac
             }
         }
         self.current_persona = 'energetic_friend'
+
+        # API配置
+        self.api_key = api_key or os.getenv('DEEPSEEK_API_KEY', '')
+        self.model = model
+        self.base_url = base_url
+        self.timeout = timeout
+        self.rate_limit = rate_limit
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+        # 降级机制
+        self.fallback_enabled = fallback_enabled
+        self.fallback_ai = RuleBasedAI() if fallback_enabled else None
+
+        # 请求控制
+        self.request_times = []  # 记录请求时间，用于速率限制
+        self.last_request_time = 0
+
+        # DeepSeek特定配置
+        self.system_prompt = self._build_game_optimized_prompt()
+        self.conversation_history = []
+        self.max_history_length = 8
 
         # 学习和适应
         self.player_style_analysis = {
@@ -409,7 +409,7 @@ class DeepSeekAI(AIBehaviorInterface, AILearningInterface, AIPersonalityInterfac
 
         # 返回得分最高的情绪
         if mood_scores:
-            return max(mood_scores, key=mood_scores.get)
+            return max(mood_scores.keys(), key=lambda mood: mood_scores[mood])
 
         return AIMood.NEUTRAL
 
@@ -479,11 +479,6 @@ class DeepSeekAI(AIBehaviorInterface, AILearningInterface, AIPersonalityInterfac
     def _update_learning_from_context(self, context: AIContext) -> None:
         """从上下文更新学习数据"""
         # 更新对话历史
-        if hasattr(self, 'current_response_text'):
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": self.current_response_text
-            })
 
         # 限制历史长度
         if len(self.conversation_history) > self.max_history_length:

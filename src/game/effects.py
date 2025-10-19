@@ -4,7 +4,11 @@ import math
 import time
 from typing import List, Dict, Any, Tuple, Optional
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+# 导入字体和文本系统
+from .font_manager import get_chinese_text_font
+from .text_localization import get_localization, TextType
 
 
 class EffectType(Enum):
@@ -28,7 +32,7 @@ class Effect:
     type: EffectType
     pos: Tuple[int, int]
     timer: int
-    data: Dict[str, Any] = None
+    data: Dict[str, Any] = field(default_factory=dict)
     created_time: float = 0.0
 
     def __post_init__(self):
@@ -63,12 +67,23 @@ class EffectManager:
         self.screen_shake_intensity = 0
         self.screen_shake_duration = 0
 
-        # 字体缓存
+        # 文本本地化系统
+        self.localization = get_localization()
+
+        # 字体缓存 - 使用新的中文字体系统
         self.fonts = {
-            'small': pygame.font.Font(None, 18),
-            'medium': pygame.font.Font(None, 24),
-            'large': pygame.font.Font(None, 36),
-            'huge': pygame.font.Font(None, 48)
+            'small': get_chinese_text_font(18),
+            'medium': get_chinese_text_font(24),
+            'large': get_chinese_text_font(36),
+            'huge': get_chinese_text_font(48)
+        }
+
+        # 字体大小定义（用于动态调整）
+        self.font_sizes = {
+            'small': 18,
+            'medium': 24,
+            'large': 36,
+            'huge': 48
         }
 
         # 特效池（对象池优化）
@@ -280,25 +295,28 @@ class EffectManager:
             is_crit: 是否暴击
             is_poison: 是否中毒伤害
         """
-        # 确定颜色
+        # 确定颜色和字体大小
         if is_crit:
             color = (255, 50, 50)
-            font = self.fonts['huge']
+            font_size = self.font_sizes['huge']
         elif is_poison:
             color = (100, 255, 100)
-            font = self.fonts['medium']
+            font_size = self.font_sizes['medium']
         else:
             color = (255, 200, 100)
-            font = self.fonts['large']
+            font_size = self.font_sizes['large']
+
+        # 使用本地化文本格式化伤害文本
+        damage_text = self.localization.format_damage_text(damage, is_crit)
 
         effect = Effect(
             type=EffectType.DAMAGE_NUMBER,
             pos=pos,
             timer=40,
             data={
-                'text': str(damage),
+                'text': damage_text,
                 'color': color,
-                'font': font,
+                'font_size': font_size,
                 'vel_y': -3,
                 'start_y': pos[1],
                 'alpha': 255
@@ -314,12 +332,15 @@ class EffectManager:
             exp_amount: 经验值
             pos: 位置
         """
+        # 使用本地化文本格式化经验文本
+        exp_text = self.localization.format_exp_text(exp_amount)
+
         effect = Effect(
             type=EffectType.EXP_GAIN,
             pos=pos,
             timer=60,
             data={
-                'text': f'+{exp_amount} EXP',
+                'text': exp_text,
                 'color': (100, 255, 100),
                 'vel_y': -2,
                 'start_y': pos[1],
@@ -374,12 +395,15 @@ class EffectManager:
         Args:
             pos: 位置
         """
+        # 使用本地化文本获取警告信息
+        warning_text = self.localization.get_gameplay_text('stamina_warning')
+
         effect = Effect(
             type=EffectType.STAMINA_WARNING,
             pos=pos,
             timer=90,
             data={
-                'text': '体力不足!',
+                'text': warning_text,
                 'color': (100, 100, 255),
                 'alpha': 0,
                 'target_alpha': 200,
@@ -631,11 +655,20 @@ class EffectManager:
     def _draw_damage_number(self, screen: pygame.Surface, effect: Effect, pos: Tuple[int, int]) -> None:
         """绘制伤害数字"""
         color = (*effect.data['color'], effect.data['alpha'])
-        text = effect.data['font'].render(effect.data['text'], True, color[:3])
+        # 使用本地化文本渲染
+        text = self.localization.render_text(
+            effect.data['text'],
+            effect.data.get('font_size', self.font_sizes['large']),
+            color[:3]
+        )
         text_rect = text.get_rect(center=pos)
 
         # 添加阴影效果
-        shadow_text = effect.data['font'].render(effect.data['text'], True, (0, 0, 0))
+        shadow_text = self.localization.render_text(
+            effect.data['text'],
+            effect.data.get('font_size', self.font_sizes['large']),
+            (0, 0, 0)
+        )
         shadow_rect = shadow_text.get_rect(center=(pos[0] + 2, pos[1] + 2))
 
         screen.blit(shadow_text, shadow_rect)
@@ -643,26 +676,34 @@ class EffectManager:
 
     def _draw_crit_effect(self, screen: pygame.Surface, effect: Effect, pos: Tuple[int, int]) -> None:
         """绘制暴击特效"""
-        font = self.fonts['huge']
-        text = font.render(effect.data['text'], True, effect.data['color'])
+        text = self.localization.render_text(
+            effect.data['text'],
+            self.font_sizes['huge'],
+            effect.data['color']
+        )
 
         # 应用缩放
-        if effect.data['scale'] != 1.0:
-            scaled_size = (int(text.get_width() * effect.data['scale']),
-                          int(text.get_height() * effect.data['scale']))
-            text = pygame.transform.scale(text, scaled_size)
+        if effect.data.get('scale', 1.0) != 1.0:
+            scale = effect.data.get('scale', 1.0)
+            scaled_size = (int(text.get_width() * scale),
+                          int(text.get_height() * scale))
+            text = pygame.transform.smoothscale(text, scaled_size)  # 使用平滑缩放
 
         text_rect = text.get_rect(center=pos)
         screen.blit(text, text_rect)
 
     def _draw_combo_effect(self, screen: pygame.Surface, effect: Effect, pos: Tuple[int, int]) -> None:
         """绘制连击特效"""
-        font = self.fonts['large']
-        text = font.render(f"x{effect.data['combo']}", True, (255, 200, 100))
+        combo_text = self.localization.format_combo_text(effect.data['combo'])
+        text = self.localization.render_text(
+            combo_text,
+            self.font_sizes['large'],
+            (255, 200, 100)
+        )
 
         # 应用缩放和旋转
         if effect.data['scale'] != 1.0 or effect.data['rotation'] != 0:
-            text = pygame.transform.scale(text,
+            text = pygame.transform.smoothscale(text,  # 使用平滑缩放
                 (int(text.get_width() * effect.data['scale']),
                  int(text.get_height() * effect.data['scale'])))
             text = pygame.transform.rotate(text, effect.data['rotation'])
@@ -679,13 +720,17 @@ class EffectManager:
                 pygame.draw.circle(screen, color[:3], pos, ring['radius'], ring['thickness'])
 
         # 绘制文字
-        font = self.fonts['huge']
-        text = font.render(effect.data['text'], True, effect.data['color'])
+        text = self.localization.render_text(
+            effect.data['text'],
+            self.font_sizes['huge'],
+            effect.data['color']
+        )
 
-        if effect.data['scale'] != 1.0:
-            scaled_size = (int(text.get_width() * effect.data['scale']),
-                          int(text.get_height() * effect.data['scale']))
-            text = pygame.transform.scale(text, scaled_size)
+        if effect.data.get('scale', 1.0) != 1.0:
+            scale = effect.data.get('scale', 1.0)
+            scaled_size = (int(text.get_width() * scale),
+                          int(text.get_height() * scale))
+            text = pygame.transform.smoothscale(text, scaled_size)  # 使用平滑缩放
 
         text_rect = text.get_rect(center=pos)
         screen.blit(text, text_rect)

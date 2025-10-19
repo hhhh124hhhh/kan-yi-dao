@@ -8,7 +8,8 @@
       "Bash(chmod:*)",
       "Bash(tree:*)",
       "Bash(pip3 install:*)",
-      "Bash(SDL_AUDIODRIVER=dummy python3:*)"
+      "Bash(SDL_AUDIODRIVER=dummy python3:*)",
+      "Bash(fc-list:*)"
     ],
     "deny": [],
     "ask": []

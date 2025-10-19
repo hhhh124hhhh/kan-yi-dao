@@ -19,6 +19,10 @@ from .sound_manager import SoundManager
 from .data_manager import DataManager
 from .game_constants import DebugConstants, validate_player_attributes, validate_enemy_attributes
 
+# 导入字体和文本系统
+from .font_manager import get_chinese_text_font
+from .text_localization import get_localization, TextType
+
 # 导入AI管理器
 from ai.ai_manager import AIManager
 
@@ -341,6 +345,9 @@ class Game:
 
     def _draw_pause_overlay(self):
         """绘制暂停覆盖层"""
+        # 获取文本本地化系统
+        localization = get_localization()
+
         # 半透明黑色覆盖层
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         overlay.set_alpha(128)
@@ -348,13 +355,17 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
         # 暂停文字
-        font = pygame.font.Font(None, 48)
-        text = font.render("游戏暂停", True, (255, 255, 255))
+        pause_title = localization.get_ui_text('pause_title')
+        text = localization.render_text(pause_title, 48, (255, 255, 255))
         text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         self.screen.blit(text, text_rect)
 
-        font_small = pygame.font.Font(None, 24)
-        text_small = font_small.render("按 P 继续，ESC 退出", True, (200, 200, 200))
+        # 操作提示
+        continue_text = localization.get_ui_text('pause_resume')
+        exit_text = localization.get_ui_text('pause_exit')
+        hint_text = f"{continue_text}, {exit_text}"
+
+        text_small = localization.render_text(hint_text, 24, (200, 200, 200))
         text_rect_small = text_small.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
         self.screen.blit(text_small, text_rect_small)
 

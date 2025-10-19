@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(timeout:*)",
+      "Bash(find:*)",
+      "Bash(chmod:*)",
+      "Bash(tree:*)",
+      "Bash(pip3 install:*)",
+      "Bash(SDL_AUDIODRIVER=dummy python3:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
